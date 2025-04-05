@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, Suspense } from 'react'
 import { useSession, signOut } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
@@ -10,10 +10,32 @@ import CareerQuiz from './components/CareerQuiz'
 import CareerRecommendations from './components/CareerRecommendations'
 import getRecommendedCourses from './utils/courseRecommendations'
 
+// Create a client component that safely uses useSearchParams
+function SearchParamsHandler({ onParamsProcessed }) {
+  const searchParams = useSearchParams()
+  
+  useEffect(() => {
+    const fromQuiz = searchParams.get('quiz')
+    const interestsParam = searchParams.get('interests')
+    
+    if (fromQuiz === 'true' && interestsParam) {
+      try {
+        const parsedInterests = JSON.parse(decodeURIComponent(interestsParam))
+        if (Array.isArray(parsedInterests)) {
+          onParamsProcessed(parsedInterests)
+        }
+      } catch (error) {
+        console.error('Error parsing interests from URL:', error)
+      }
+    }
+  }, [searchParams, onParamsProcessed])
+  
+  return null
+}
+
 export default function Home() {
   const { data: session, status } = useSession()
   const router = useRouter()
-  const searchParams = useSearchParams()
   const [recommendations, setRecommendations] = useState(null)
   const [loading, setLoading] = useState(false)
   const [emailSent, setEmailSent] = useState(false)
@@ -24,31 +46,10 @@ export default function Home() {
   // Ref for form section to scroll to
   const formRef = useRef(null)
 
-  // Check for quiz parameters in URL
-  useEffect(() => {
-    const fromQuiz = searchParams.get('quiz')
-    const interestsParam = searchParams.get('interests')
-    
-    if (fromQuiz === 'true' && interestsParam) {
-      try {
-        const parsedInterests = JSON.parse(decodeURIComponent(interestsParam))
-        if (Array.isArray(parsedInterests)) {
-          setSelectedInterests(parsedInterests)
-        }
-      } catch (error) {
-        console.error('Error parsing interests from URL:', error)
-      }
-    }
-  }, [searchParams])
-
-  // Comment out redirect to login if not authenticated
-  /* 
-  useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.push('/login')
-    }
-  }, [status, router])
-  */
+  // Handle search params
+  const handleParamsProcessed = (interests) => {
+    setSelectedInterests(interests)
+  }
 
   // Handle scroll to form when button is clicked
   const scrollToForm = () => {
@@ -154,6 +155,11 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      {/* Wrap the search params handler in Suspense */}
+      <Suspense fallback={null}>
+        <SearchParamsHandler onParamsProcessed={handleParamsProcessed} />
+      </Suspense>
+      
       <div className="relative bg-indigo-700 text-white py-16 overflow-hidden">
         <div className="absolute inset-0 z-0 opacity-20">
           <svg className="h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
